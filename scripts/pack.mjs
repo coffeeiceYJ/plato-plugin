@@ -13,7 +13,9 @@ try {
   delete manifest.scripts;
   delete manifest.types;
   manifest.exports['.'] = { default: './lib/index.js' };
-  manifest.dependencies['@software-factory/runtime-sdk'] = '0.1.0';
+  const sdkSource = join(project, 'node_modules/@software-factory/runtime-sdk');
+  const sdkManifest = JSON.parse(await readFile(join(sdkSource, 'package.json'), 'utf8'));
+  manifest.dependencies['@software-factory/runtime-sdk'] = sdkManifest.version;
   manifest.files = manifest.files.filter(path => path !== 'vendor/');
   await writeFile(join(stage, 'package.json'), JSON.stringify(manifest, null, 2));
   for (const path of manifest.files) {
@@ -23,10 +25,8 @@ try {
         && !source.includes('__pycache__') && basename(source) !== 'source-manifest.json',
     });
   }
-  const sdkSource = join(project, 'node_modules/@software-factory/runtime-sdk');
   const sdkTarget = join(stage, 'node_modules/@software-factory/runtime-sdk');
   await mkdir(join(sdkTarget, 'lib'), { recursive: true });
-  const sdkManifest = JSON.parse(await readFile(join(sdkSource, 'package.json'), 'utf8'));
   // Keep the original executable byte-for-byte, with only runtime package metadata.
   await cp(join(sdkSource, 'lib/index.js'), join(sdkTarget, 'lib/index.js'));
   await writeFile(join(sdkTarget, 'package.json'), JSON.stringify({

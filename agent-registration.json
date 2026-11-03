@@ -6,8 +6,10 @@
   },
   "agentVersion": {
     "properties": {
-      "version": "bf36c90-activity-sdk1",
-      "description": "基于 PLATO bf36c90 活动图流程的 Runtime SDK 适配版本，交付 PlantUML 源码和 PNG。关闭可选 CoreNLP/fastcoref；逐次模型采样参数受 SDK 限制。",
+      "version": "bf36c90-activity-sdk2",
+      "status": "enabled",
+      "description": "将自然语言软件需求转换为 UML 活动图，通过活动识别、控制结构分解和信息整合，表达需求中的顺序、条件、循环及并发关系，生成经过 PlantUML 语法检查的源码和 PNG 图像。本版本仅支持活动图。",
+      "developer": "黄益柯、林子涵、叶博一",
       "invoke_kind": "dsh_tool",
       "dsh_ref": "sf_plato_activity",
       "input_schema": {
@@ -20,33 +22,61 @@
       "output_schema": {
         "description": "完成说明，以及可下载的 activity.puml 和 activity.png 文件。",
         "files": [
-          { "x-artifact-kind": "file", "x-file-extension": ".puml" },
-          { "x-artifact-kind": "file", "x-file-extension": ".png" }
+          {
+            "x-artifact-kind": "file",
+            "x-file-extension": ".puml"
+          },
+          {
+            "x-artifact-kind": "file",
+            "x-file-extension": ".png"
+          }
         ]
       },
       "intermediate_artifacts_json": [
-        { "description": "活动识别列表", "x-file-extension": ".json" },
-        { "description": "控制结构分解和信息整合", "x-file-extension": ".txt" },
-        { "description": "逐次模型请求、响应和用量快照", "x-file-extension": ".json" }
+        {
+          "description": "活动识别列表",
+          "x-artifact-kind": "file",
+          "x-file-extension": ".json"
+        },
+        {
+          "description": "控制结构分解和信息整合",
+          "x-artifact-kind": "file",
+          "x-file-extension": ".txt"
+        },
+        {
+          "description": "逐次模型请求、响应和用量快照",
+          "x-artifact-kind": "file",
+          "x-file-extension": ".json"
+        }
       ],
       "constraints_json": {
         "dsh": "0.2.1-alpha.2",
-        "runtimeSdk": "0.1.0",
+        "runtimeSdk": "0.2.0",
+        "runtime": "Python",
+        "version": "3.12.10",
+        "dshRuntime": ">=0.2.0",
         "node": ">=24",
-        "testedPython": "3.12.7",
-        "pythonDependencies": ["httpx==0.28.1", "PyYAML==6.0.3"],
-        "external": ["Java", "Compatible PlantUML JAR"],
-        "optionalNlp": "disabled",
-        "limitations": ["Activity diagrams only", "Per-request temperature is not supported by SDK 0.1.0"]
+        "external": [
+          "Java",
+          "Compatible PlantUML JAR"
+        ],
+        "limitations": [
+          "Activity diagrams only"
+        ]
       },
       "model_dependencies_json": [
-        { "capability": "通过 DSH 提供 system/user 文本消息推理；实际模型效果需要独立验证。" }
+        {
+          "vendor": "DeepSeek",
+          "name": "deepseek-v4.1-flash"
+        }
       ],
-      "object_categories_json": ["自然语言软件需求", "UML 活动图"],
+      "object_categories_json": [
+        "自然语言软件需求",
+        "UML 活动图"
+      ],
       "performance_evidence_json": {
-        "evidence_kind": "synthetic_integration_test",
-        "summary": "通过真实 DSH Tool/Runtime/SDK 调用、Python 算法和 Java 出图，模型使用本地合成响应。验证发现、产物引用、错误、取消和停用撤销，不是准确率、论文复现或真实模型效果证据。",
-        "reference": "README.md#9-验证记录"
+        "evidence_kind": "paper",
+        "summary": "ICSE 2026 LATO 论文，使用 DeepSeek-V3，在六个数据集、541 个场景上评估。节点 F1 为 0.5772—0.8742，关系 F1 为 0.4043—0.7892，语法及结构通过率为 96.67%—99.36%。节点和关系 F1 相对最佳基线平均提升 19.0% 和 20.0%。"
       }
     }
   }

@@ -45,8 +45,9 @@ class ModelBridge:
         request_id = str(self.sequence)
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         save(self.root, f"snapshots/model-{self.sequence:03d}-request.json",
-             {"stage": stage, "messages": messages, "originalTemperature": temperature})
-        emit("model_request", id=request_id, messages=messages)
+             {"stage": stage, "messages": messages, "temperature": temperature,
+              "originalTemperature": temperature})
+        emit("model_request", id=request_id, messages=messages, temperature=temperature)
         response = receive()
         if (response.get("runId") != run_id or response.get("type") != "model_response"
                 or response.get("id") != request_id):

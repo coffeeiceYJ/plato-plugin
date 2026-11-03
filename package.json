@@ -1,6 +1,6 @@
 {
   "name": "@software-factory/plato",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "description": "PLATO activity diagrams: natural-language requirements to PlantUML and PNG via Software Factory Runtime",
@@ -12,13 +12,16 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./client": "./client.js",
     "./icon": "./icon.svg",
     "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "lib/",
+    "client.js",
     "cordis.patch.yml",
     "README.md",
+    "images/",
     "vendor/",
     "python/",
     "agent-registration.json",
@@ -28,36 +31,63 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
     }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:settings": "node --test scripts/settings.test.mjs",
     "prepare:python": "node scripts/prepare-python.mjs",
     "debug": "node scripts/debug.ts",
     "pack:plugin": "node scripts/pack.mjs"
   },
   "dependencies": {
-    "@software-factory/runtime-sdk": "file:vendor/software-factory-runtime-sdk-0.1.0.tgz"
+    "@software-factory/runtime-sdk": "file:vendor/software-factory-runtime-sdk-0.2.0.tgz"
   },
-  "bundledDependencies": ["@software-factory/runtime-sdk"],
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.5-alpha.1",
+    "@deepseek-ai/dsh-settings": "0.2.1-alpha.2",
     "@deepseek-ai/dsh-subprocess": "0.2.1-alpha.2",
     "@deepseek-ai/dsh-tools": "0.2.1-alpha.2",
     "@deepseek-ai/schemastery": "3.18.5-alpha.1"
   },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-settings": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.5-alpha.1",
+    "@deepseek-ai/cordis-plugin-group": "1.0.5-alpha.1",
+    "@deepseek-ai/cordis-plugin-include": "1.0.10-alpha.1",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.6-alpha.1",
     "@deepseek-ai/dsh-agent-loop-testkit": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-app-boot": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-config-editor": "0.2.1-alpha.2",
+    "@deepseek-ai/dsh-settings": "0.2.1-alpha.2",
     "@deepseek-ai/dsh-subprocess-local": "0.2.1-alpha.2",
     "@deepseek-ai/dsh-tools": "0.2.1-alpha.2",
     "@deepseek-ai/dsh-typert-registry": "0.2.1-alpha.2",
-    "@software-factory/runtime": "file:test-runtime-cache/software-factory-runtime-0.1.0.tgz",
+    "@software-factory/runtime": "file:test-runtime-cache/software-factory-runtime-0.2.0.tgz",
     "@types/node": "24.19.2",
+    "jsdom": "26.1.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "typescript": "5.9.3"
   },
   "engines": {
     "node": ">=24"
-  }
+  },
+  "bundleDependencies": [
+    "@software-factory/runtime-sdk"
+  ]
 }

@@ -13,10 +13,9 @@ export async function runPlato(
   execution.signal.throwIfAborted();
   if (!input.requirement_text.trim()) throw new Error('PLATO_INPUT_EMPTY: 需求不能全为空白。');
   await execution.log('开始生成 PLATO 活动图');
-  await execution.reportProgress({ stage: 'preparation', stageName: '准备 PLATO 执行环境' });
-  await execution.reportIssue({
-    level: 'warning', code: 'SDK_TEMPERATURE_UNSUPPORTED',
-    message: 'Runtime SDK 0.1.0 不支持逐次设置 temperature；使用 DSH 模型采样配置，与原算法各阶段设置存在差异。',
+  await execution.reportProgress({
+    stage: 'preparation', stageName: '准备 PLATO 执行环境', progress: 0,
+    message: '估算进度：按执行阶段计算，不代表剩余时间或生成质量。',
   });
   return callPlatoPython(subprocess, config, input, execution);
 }

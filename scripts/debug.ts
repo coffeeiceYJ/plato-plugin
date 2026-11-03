@@ -28,13 +28,16 @@ const ctx = new Context();
 const seen = [];
 let modelStarted = Promise.withResolvers();
 
-function synthetic(system) {
+function synthetic(system, user) {
   const lower = system.toLowerCase();
-  if (lower.includes('strict control-structure synthesizer')) return "LEVEL 1 Begin: 'to be decomposed' [Condition]{\nLEVEL 1 End";
+  if (lower.includes('strict control-structure synthesizer')) return user.includes('#Reminder:')
+    ? "LEVEL 1 Begin: 'to be decomposed' [Condition]{\nLEVEL 1 End" : 'Invalid framework; exercise the original retry';
   if (lower.includes('evaluate whether a given intermediate nested decomposition')) return '[Valid][Done]';
   if (lower.includes('extracting atomic activities')) return '["Check inventory", "Ship order", "Notify customer"]';
   if (lower.includes('integrating analysed requirement')) return 'Check inventory\nif in stock\n  Ship order\nelse\n  Notify customer';
-  if (lower.includes('plantuml expert')) return '@startuml\nstart\n:Check inventory;\nif (In stock?) then (yes)\n:Ship order;\nelse (no)\n:Notify customer;\nendif\nstop\n@enduml';
+  if (lower.includes('plantuml expert')) return lower.includes('fix the following errors')
+    ? '@startuml\nstart\n:Check inventory;\nif (In stock?) then (yes)\n:Ship order;\nelse (no)\n:Notify customer;\nendif\nstop\n@enduml'
+    : '@startuml\nstart\nif (\n@enduml'; // Invalid syntax exercises the original repair.
   if (lower.includes('rough decomposition')) return 'Level 1{Check inventory; [Condition] in stock: Ship order; otherwise: Notify customer}';
   throw new Error('Synthetic fixture did not recognize a PLATO prompt');
 }
@@ -55,7 +58,10 @@ class SyntheticModel extends LlmAdapter {
     const system = options.system || options.messages.filter(m => m.role === 'system').map(m =>
       typeof m.content === 'string' ? m.content : m.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
     ).join('\n');
-    yield { type: 'text-delta', index: 0, text: synthetic(system) };
+    const user = options.messages.filter(m => m.role === 'user').map(m =>
+      typeof m.content === 'string' ? m.content : m.content.filter(b => b.type === 'text').map(b => b.text).join('\n')
+    ).join('\n');
+    yield { type: 'text-delta', index: 0, text: synthetic(system, user) };
     yield { type: 'finish', reason: { kind: 'stop' } };
   }
 }
@@ -114,8 +120,36 @@ try {
   const saved = JSON.parse(await readFile(join(directory, 'run.json'), 'utf8'));
   const actualStages = saved.events.filter(e => e.type === 'progress').map(e => e.data.stage);
   for (const stage of ['activity_identification', 'structure_decomposition', 'information_integration', 'plantuml_generation', 'rendering']) assert.ok(actualStages.includes(stage));
+  const progressEvents = saved.events.filter(e => e.type === 'progress');
+  const completedProgress = progressEvents.map(e => e.data.progress);
+  assert.deepEqual(completedProgress, [0, 5, 20, 65, 80, 95, 100]);
+  assert.equal(completed.progress, 100);
+  assert.equal(completed.stage, 'delivery');
+  assert.ok(progressEvents.slice(0, -1).every(e => e.data.message.includes('估算进度')));
+  const delivered = saved.events.findIndex(e => e.type === 'progress' && e.data.progress === 100);
+  for (const path of ['final/activity.puml', 'final/activity.png']) {
+    const registered = saved.events.findIndex(e => e.type === 'artifact' && e.data.relativePath === path);
+    assert.ok(registered >= 0 && registered < delivered, path + ' must be registered before 100%');
+  }
+  checks.push('Estimated stage percentages reach Runtime/card data in order; 100% follows registration of both final files');
   assert.ok(seen.length >= 6);
   assert.ok(seen.every(request => request.sessionId !== agent.id));
+  const temperatures = seen.map(request => request.temperature);
+  assert.deepEqual(temperatures, [0.2, 0, 0, 0.3, 0, 0.2, 0.2, 0.2]);
+  assert.ok(!completed.issues.some(issue => issue.code === 'SDK_TEMPERATURE_UNSUPPORTED'));
+  const expectedStages = ['activity_identification', 'structure_decomposition', 'structure_decomposition',
+    'structure_decomposition', 'structure_decomposition', 'information_integration', 'plantuml_generation', 'plantuml_generation'];
+  for (const [index, request] of seen.entries()) {
+    const snapshot = JSON.parse(await readFile(join(directory, `snapshots/model-${String(index + 1).padStart(3, '0')}-request.json`), 'utf8'));
+    assert.equal(snapshot.temperature, temperatures[index]);
+    assert.equal(snapshot.originalTemperature, temperatures[index]);
+    assert.equal(snapshot.stage, expectedStages[index]);
+    const modelLog = JSON.parse(await readFile(join(directory, 'logs', request.sessionId + '.json'), 'utf8'));
+    assert.equal(modelLog.requestedControls.temperature, temperatures[index]);
+    assert.equal(modelLog.events.find(event => event.type === 'request/header').data.header.config.temperature, temperatures[index]);
+  }
+  checks.push('Per-stage temperatures reach the DSH adapter unchanged, including zero, framework retry and PlantUML repair');
+  checks.push('Python snapshots, Runtime requestedControls and effective request headers agree on every temperature');
   for (const file of completed.result.files) {
     const reference = await call('get_artifact', { runId: accepted.runId, artifactId: file.artifactId });
     assert.match(reference.downloadUrl, /^\/api\/sf-runtime\/download\?/);
@@ -127,6 +161,10 @@ try {
   assert.equal(failed.status, 'failed');
   assert.ok(failed.issues.some(i => i.message.includes('SYNTHETIC_MODEL_FAILURE')));
   assert.equal(failed.result, undefined);
+  const failedSaved = JSON.parse(await readFile(join(workspace, 'outputs/runs', failed.runId, 'run.json'), 'utf8'));
+  const failedProgress = failedSaved.events.filter(e => e.type === 'progress').map(e => e.data.progress);
+  assert.deepEqual(failedProgress, [0, 5]);
+  assert.equal(failed.progress, 5);
   checks.push('Model failure becomes a failed Run and never a successful diagram');
 
   modelStarted = Promise.withResolvers();
@@ -136,13 +174,18 @@ try {
   const cancelled = await finish(cancelling.runId);
   assert.equal(cancelled.status, 'cancelled', JSON.stringify(cancelled.issues));
   assert.ok(cancelled.artifacts.some(a => a.relativePath.startsWith('snapshots/')));
+  const cancelledSaved = JSON.parse(await readFile(join(workspace, 'outputs/runs', cancelled.runId, 'run.json'), 'utf8'));
+  const cancelledProgress = cancelledSaved.events.filter(e => e.type === 'progress').map(e => e.data.progress);
+  assert.deepEqual(cancelledProgress, [0, 5]);
+  assert.equal(cancelled.progress, 5);
+  checks.push('Failed/cancelled Runs retain their last estimated percentage and never report 100%');
   checks.push('Cancellation stops the model and managed Python range, retaining existing materials');
 
   await plugin.dispose();
   const removed = await raw('get_tool_contract', { toolId: 'sf_plato_activity' });
   assert.equal(removed.value.ok, false);
   checks.push('Disabling the plugin revokes Runtime discovery');
-  const report = { testedAt: new Date().toISOString(), workspace, model: 'Synthetic local fixture, no real inference', checks, completedRunId: accepted.runId, failedRunId: failed.runId, cancelledRunId: cancelled.runId };
+  const report = { testedAt: new Date().toISOString(), workspace, model: 'Synthetic local fixture, no real inference', temperatures, progress: { completed: completedProgress, failed: failedProgress, cancelled: cancelledProgress }, checks, completedRunId: accepted.runId, failedRunId: failed.runId, cancelledRunId: cancelled.runId };
   await writeFile(join(root, 'validation.json'), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally {

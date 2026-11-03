@@ -10,6 +10,14 @@ import type { PlatoInput } from './business.js';
 
 const LIMIT = 4 * 1024 * 1024;
 const PROTOCOL = 1;
+// Stage milestones, not elapsed-time estimates. Retries remain at the current milestone.
+const STAGE_PROGRESS: Readonly<Record<string, number>> = {
+  activity_identification: 5,
+  structure_decomposition: 20,
+  information_integration: 65,
+  plantuml_generation: 80,
+  rendering: 95,
+};
 
 async function* lines(stream: Readable): AsyncGenerator<string> {
   const decoder = new StringDecoder('utf8');
@@ -39,7 +47,7 @@ export async function callPlatoPython(
   input: Readonly<PlatoInput>, execution: ExecutionContext,
 ): Promise<BusinessResult> {
   execution.signal.throwIfAborted();
-  if (!isAbsolute(config.plantumlJarPath)) throw new Error('PLATO_CONFIG_REQUIRED: plantumlJarPath 必须是服务端 JAR 的绝对路径。');
+  if (!isAbsolute(config.plantumlJarPath)) throw new Error('PLATO_CONFIG_REQUIRED: 请在插件管理的 PLATO 详情页填写 PlantUML JAR 的服务端绝对路径并保存。');
   const jar = await realpath(config.plantumlJarPath);
   if (!(await stat(jar)).isFile()) throw new Error('PLATO_CONFIG_INVALID: PlantUML JAR 不存在。');
   const python = await subprocess.resolveExecutable(config.pythonPath, undefined, execution.signal);
@@ -68,6 +76,7 @@ export async function callPlatoPython(
   let ready = false;
   let result: string | undefined;
   let modelSequence = 0;
+  let lastProgress = 0;
   const files = new Map<string, string>();
   let stdinError: Error | undefined;
   child.stdin?.on('error', (error: Error) => { stdinError = error; ownController.abort(error); });
@@ -91,10 +100,17 @@ export async function callPlatoPython(
           ready = true; clearTimeout(timer);
           await execution.log('Python 已接收需求，并在本次任务目录实际写入成功。', 'preparation');
           break;
-        case 'progress':
+        case 'progress': {
           if (!ready || typeof message.stage !== 'string' || typeof message.stageName !== 'string') throw new Error('PLATO_PROTOCOL_INVALID: invalid progress');
-          await execution.reportProgress({ stage: message.stage, stageName: message.stageName });
+          const milestone = STAGE_PROGRESS[message.stage];
+          if (typeof milestone !== 'number') throw new Error('PLATO_PROTOCOL_INVALID: unknown progress stage');
+          lastProgress = Math.max(lastProgress, milestone);
+          await execution.reportProgress({
+            stage: message.stage, stageName: message.stageName, progress: lastProgress,
+            message: '估算进度：按执行阶段计算，不代表剩余时间或生成质量。',
+          });
           break;
+        }
         case 'log':
           if (typeof message.message !== 'string' || typeof message.stage !== 'string') throw new Error('PLATO_PROTOCOL_INVALID: invalid log');
           await execution.log(message.message.slice(0, 4000), message.stage);
@@ -108,11 +124,12 @@ export async function callPlatoPython(
           if (!ready || message.id !== String(modelSequence) || !Array.isArray(message.messages) || message.messages.length !== 2) throw new Error('PLATO_PROTOCOL_INVALID: invalid model request');
           const messages = message.messages as Array<{ role: string; content: unknown }>;
           if (messages[0]?.role !== 'system' || messages[1]?.role !== 'user' || messages.some(m => typeof m.content !== 'string')) throw new Error('PLATO_PROTOCOL_INVALID: expected original system/user text messages');
+          if (typeof message.temperature !== 'number' || !Number.isFinite(message.temperature) || message.temperature < 0 || message.temperature > 2) throw new Error('PLATO_PROTOCOL_INVALID: temperature must be a finite number from 0 to 2');
           try {
             const response = await execution.model.call({ messages: [
               { role: 'system', content: messages[0]!.content as string },
               { role: 'user', content: messages[1]!.content as string },
-            ] });
+            ], temperature: message.temperature });
             signal.throwIfAborted();
             if (!response.text.trim()) throw new Error('PLATO_MODEL_EMPTY: 模型返回空文本。');
             await send(child.stdin, { protocol: PROTOCOL, runId: execution.runId, type: 'model_response', id: message.id, text: response.text, usage: response.usage });
@@ -145,6 +162,12 @@ export async function callPlatoPython(
     if (settled.value.exitCode !== 0 || stdinError) throw stdinError ?? new Error(`PLATO_PYTHON_FAILED: exit ${settled.value.exitCode}`);
     const source = files.get('final/activity.puml'), image = files.get('final/activity.png');
     if (!result || !source || !image) throw new Error('PLATO_RESULT_MISSING: Python 未交付完整源码和 PNG。');
+    await cleanup();
+    signal.throwIfAborted();
+    await execution.reportProgress({
+      stage: 'delivery', stageName: '文件交付完成', progress: 100,
+      message: 'PlantUML 源码和 PNG 图片已生成并登记；生成质量请核对需求。',
+    });
     return { text: result, files: [source, image] };
   } catch (error) {
     const tail = child.collected.stderr?.readFrom(0).text.trim();
