@@ -8,6 +8,7 @@ window.__ModuleLoader__.load({
     const dictionaries = {
       zh: {
         title: '运行环境配置', intro: '填写 DSH 服务端的程序路径。虚拟环境可以放在插件安装目录以外。',
+        summary: '配置 PLATO 使用的 Python、Java、PlantUML JAR 和启动等待时间。',
         python: 'Python 解释器', pythonHint: '推荐填写虚拟环境中的 python.exe；Linux/macOS 使用 bin/python。',
         java: 'Java 程序', javaHint: '可填写 java，或服务端 Java 可执行文件的绝对路径。',
         jar: 'PlantUML JAR', jarHint: '必填，填写服务端 .jar 文件的绝对路径。',
@@ -23,6 +24,7 @@ window.__ModuleLoader__.load({
       },
       en: {
         title: 'Runtime configuration', intro: 'Enter paths on the DSH server. The Python environment can live outside the plugin directory.',
+        summary: 'Configure Python, Java, the PlantUML JAR and startup wait for PLATO.',
         python: 'Python interpreter', pythonHint: 'Use the virtual environment’s python.exe, or bin/python on Linux/macOS.',
         java: 'Java executable', javaHint: 'Enter java or the absolute path to the server’s Java executable.',
         jar: 'PlantUML JAR', jarHint: 'Required. Enter the absolute path to the server’s .jar file.',
@@ -144,15 +146,19 @@ window.__ModuleLoader__.load({
         ),
       );
     }
+    function ConfigurationEntry({ view, scope, t }) {
+      if (view === 'summary') return t('summary');
+      return view === 'page' ? h(Configuration, { scope, t }) : null;
+    }
     return {
       inject: ['slots', 'locale', 'configForms'],
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, dictionaries));
         const scope = ctx.configForms.get('sf-plato');
-        ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
-          name: 'plugins.bundle.config', key: '@software-factory/plato', locale: NS,
+        ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+          name: 'plugins.row.config', key: '@software-factory/plato#sf-plato', locale: NS,
           inject: () => ({ scope }),
-        }, Configuration));
+        }, ConfigurationEntry));
       },
     };
   },

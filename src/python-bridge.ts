@@ -47,7 +47,7 @@ export async function callPlatoPython(
   input: Readonly<PlatoInput>, execution: ExecutionContext,
 ): Promise<BusinessResult> {
   execution.signal.throwIfAborted();
-  if (!isAbsolute(config.plantumlJarPath)) throw new Error('PLATO_CONFIG_REQUIRED: 请在插件管理的 PLATO 详情页填写 PlantUML JAR 的服务端绝对路径并保存。');
+  if (!isAbsolute(config.plantumlJarPath)) throw new Error('PLATO_CONFIG_REQUIRED: 请进入“插件 → PLATO 插件包 → 包含的组件 → PLATO 活动图生成（sf-plato）”，填写 PlantUML JAR 的服务端绝对路径并保存。');
   const jar = await realpath(config.plantumlJarPath);
   if (!(await stat(jar)).isFile()) throw new Error('PLATO_CONFIG_INVALID: PlantUML JAR 不存在。');
   const python = await subprocess.resolveExecutable(config.pythonPath, undefined, execution.signal);

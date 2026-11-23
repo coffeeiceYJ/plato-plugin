@@ -1,11 +1,11 @@
 ﻿# PLATO 软件工厂 Runtime 插件
 
-把自然语言需求转换为 UML 活动图，交付 PlantUML 源码与 PNG，并保留分析过程。实际工具 ID 为 `sf_plato_activity`。0.1.3 包含后端算法适配、DSH 插件详情页中的网页配置表单，以及按阶段估算的任务进度百分比，复用 DSH 的聊天、Runtime 与可选任务卡片；无需启动 PLATO 原有网页或 FastAPI 服务。
+把自然语言需求转换为 UML 活动图，交付 PlantUML 源码与 PNG，并保留分析过程。实际工具 ID 为 `sf_plato_activity`。0.1.4 包含后端算法适配、DSH 组件详情页中的网页配置表单，以及按阶段估算的任务进度百分比，复用 DSH 的聊天、Runtime 与可选任务卡片；无需启动 PLATO 原有网页或 FastAPI 服务。
 
-本次更新包含三项改进：
+主要功能：
 
 - 适配 Runtime SDK 0.2.0，逐次传递原算法不同阶段的 temperature，包括0温度、重试和修复调用。
-- 在 DSH 插件详情页提供运行环境配置表单，可直接填写 Python、Java、PlantUML JAR 路径，保存后对后续任务生效。
+- 在 DSH「插件 → 插件包 → 包含的组件 → PLATO 活动图生成（sf-plato）」中提供运行环境配置表单，可直接填写 Python、Java、PlantUML JAR 路径，保存后对后续任务生效。0.1.4 已将表单从插件包外层移入对应组件。
 - 为任务进度补上按阶段估算的百分比，成功交付显示100%，失败或取消保留当前进度。
 
 ## 1. 接入范围与限制
@@ -35,14 +35,14 @@
 | Python 库 | python/requirements.txt 的 httpx、PyYAML |
 | Java / PlantUML | 单独准备兼容的 Java 与 PlantUML JAR；本次验证 Java 21.0.12 + PlantUML 1.2025.4 |
 | DSH 原生服务 | tools、sfRuntime、subprocess；本机已有 subprocess-local |
-| 网页配置表单 | DSH 原生插件管理、Settings/配置编辑器和 Client Settings 服务；这些由兼容的 DSH 网页宿主提供 |
+| 网页配置表单 | DSH 原生插件管理（支持组件配置入口 `plugins.row.config`）、Settings/配置编辑器和 Client Settings 服务；这些由兼容的 DSH 网页宿主提供 |
 | 模型 | DSH 中配置可用的文本模型；开发者无需获取或转交 API Key |
 
 Python/JAR 都运行在 DSH 服务端。浏览器电脑的文件路径不能代替服务端路径。JAR 可按 [PlantUML 官方说明](https://plantuml.com/download) 获取兼容版本；不要跨电脑复制 `.venv`。
 
 ## 3. 安装与网页配置
 
-1. 下载 `software-factory-plato-0.1.3.zip`，解压到长期保留目录。安装目录内应有 package.json、client.js、lib、python 和 cordis.patch.yml。也提供 TGZ，内容相同。
+1. 下载 `software-factory-plato-0.1.4.zip`，解压到长期保留目录。安装目录内应有 package.json、client.js、lib、python 和 cordis.patch.yml。也提供 TGZ，内容相同。
 2. 在该目录准备 Python 环境（以下为 Windows 示例）：
 
 ```powershell
@@ -51,8 +51,8 @@ python -m venv .venv
 ```
 
 3. 在 DSH 插件管理添加这个包含 package.json 的本地目录。SDK 已随包内嵌，不用另装 SDK 服务；宿主安装器仍可能下载/解析 peer 依赖，不承诺离线安装。
-4. 启用 PLATO 组合包及其 `sf-plato` 组件。安装或升级后按 DSH 提示重启后端，再刷新网页，确认插件版本为 0.1.3。
-5. 打开 **DSH「插件」→「PLATO 活动图生成」详情页**。在插件名称和简介下方、**「包含的组件」上方**，可以看到 **「运行环境配置」表单**；直接在这里填写，不需要找齿轮、编辑 YAML 或修改 profile 文件。
+4. 启用 PLATO 组合包及其 `sf-plato` 组件。安装或升级后按 DSH 提示重启后端，再刷新网页，确认插件版本为 0.1.4。
+5. 打开 **DSH「插件」→「PLATO 活动图生成」插件包 →「包含的组件」→「PLATO 活动图生成」（sf-plato）**，点击对应组件的「配置」入口进入组件详情页，在 **「运行环境配置」表单**中填写。插件包外层不再放置表单；用户无需编辑 YAML、`.env` 或 profile 文件。
 
 | 网页字段 | 示例 | 说明 |
 |---|---|---|
@@ -66,16 +66,21 @@ python -m venv .venv
 
 路径是 **DSH 服务端**的路径，不能填写远程浏览器电脑上的路径。保存表单只校验字段格式；不会自动创建虚拟环境、安装 Python 库或下载 JAR。程序存在、依赖可导入和 JAR 可执行会在任务准备阶段检查。
 
-用户提供的0.1.3配置页面截图如下；图中的路径是本机示例，使用时请填写实际服务端路径。
+<details>
+<summary>历史配置截图（0.1.3：表单位于插件包外层）</summary>
+
+以下为用户提供的0.1.3截图，不代表0.1.4的入口位置。0.1.4请按上面的路径进入对应组件，表单字段与保存方式保持一致；图中的路径仅为本机示例。
 
 ![PLATO 运行环境配置表单，包含 Python、Java、PlantUML JAR 和保存按钮](images/plato-configuration.png)
+
+</details>
 
 ### 本机可直接填写的值
 
 本机已在源码目录准备了虚拟环境，安装目录和环境目录可以分开。插件安装来源使用包含 package.json 的目录：
 
 ```text
-D:\桌面\软件工厂\plato-plugin\dist\release-0.1.3\package
+D:\桌面\软件工厂\plato-plugin\dist\release-0.1.4\package
 ```
 
 在上述网页表单中分别填写：
@@ -89,11 +94,11 @@ D:\桌面\软件工厂\plato-plugin\dist\release-0.1.3\package
 
 保留所引用的 `.venv`、JAR 和插件安装目录；本机示例 JAR 位于 test-results，清理测试目录前请先将 JAR 放到长期目录并在网页更新路径。发布包不包含虚拟环境或 JAR，其他电脑应自行准备。
 
-### 从 0.1.1 / 0.1.2 升级
+### 从 0.1.1 / 0.1.2 / 0.1.3 升级
 
-确认没有活动任务后，通过 DSH 插件管理将同名 PLATO 包的安装来源更新为新版解压目录，按提示重启后端并刷新网页。0.1.1 没有网页配置表单，更新后应在详情页直接看到“运行环境配置”。已有的 `sf-plato` 配置会读取到表单中，后续在网页修改保存即可，无需手工迁移或改配置文件。若刚安装时组件仍为“已关闭”，启用组合包及 `sf-plato` 后再读取表单。
+确认没有活动任务后，通过 DSH 插件管理将同名 PLATO 包的安装来源更新为新版解压目录，按提示重启后端并刷新网页。进入「包含的组件」中的 `sf-plato` 组件配置页读取“运行环境配置”。0.1.1 没有网页配置表单，0.1.2/0.1.3的表单在插件包外层；0.1.4统一在组件内部配置。已有的 `sf-plato` 配置直接读取，无需重填路径、迁移数据或修改配置文件。若刚安装时组件仍为“已关闭”，启用组合包及 `sf-plato` 后再读取表单。
 
-0.1.2 已有网页配置表单；升级到 0.1.3 后，新启动的任务还会显示进度百分比。历史任务不会补写百分比。安装目录可与原虚拟环境目录分开，网页中的 Python、Java、JAR 路径仍使用实际可用的原路径。
+进度百分比自0.1.3开始提供，0.1.4继续保留；历史任务不会补写百分比。安装目录可与原虚拟环境目录分开，网页中的 Python、Java、JAR 路径仍使用实际可用的原路径。
 
 ## 4. 实际调用
 
@@ -178,7 +183,9 @@ debug 使用官方 DSH Agent 测试工具，走真实 Tool → Runtime → SDK �
 
 src/index.ts 登记工具；src/business.ts 实现 SDK 业务入口；src/python-bridge.ts 托管进程并转发 JSONL；python/worker.py 调用原算法并保存材料。lib 是编译输出。
 
-client.js 通过 `plugins.bundle.config` 注册详情页表单，使用 `ctx.configForms.get('sf-plato')` 的原生设置接口保存。Host Config 四个字段使用 `.volatile()`；业务入口在启动任务时读取并固定一份配置。没有新增独立配置文件、服务器保存路由或模型调用。`test:settings` 在项目 test-results 中创建独立测试 profile，检查原生 Settings 持久化与重启恢复、修改冲突、错误提示和 React 表单交互，不修改用户 profile。
+client.js 通过 `plugins.row.config` 注册组件详情页表单，key为 `@software-factory/plato#sf-plato`（实际Bundle包名加patch中的组件rowId），使用 `ctx.configForms.get('sf-plato')` 的原生设置接口保存。`view: 'page'` 显示完整表单，`view: 'summary'` 仅提供说明；离开组件页面会丢弃未保存的修改。表单入口与配置命名空间独立：本次只调整入口，原有配置继续使用。若以后合入其他Bundle或调整rowId，需按实际包名和rowId重新登记入口，并核对对应控制器，不能假设旧key自动匹配。
+
+Host Config 四个字段使用 `.volatile()`；业务入口在启动任务时读取并固定一份配置。没有新增独立配置文件、服务器保存路由或模型调用。`test:settings` 在项目 test-results 中创建独立测试 profile，检查组件配置入口注册、摘要与页面视图、已有配置读取、原生 Settings 持久化与重启恢复、修改冲突、错误提示和表单交互，并核对兄弟组件配置不受影响；不修改用户 profile。自动化表单测试不等于实际DSH宿主页面的视觉验收。
 
 `npm run prepare:python` 仅在需要同步算法副本时执行；默认读取相邻 PLATO，可通过 PLATO_SOURCE_ROOT 指定。同步会生成新的文件散列，应审阅算法差异。正常构建不依赖相邻 PLATO。
 
@@ -187,8 +194,8 @@ client.js 通过 `plugins.bundle.config` 注册详情页表单，使用 `ctx.con
 | 报错 | 处理 |
 |---|---|
 | 插件不兼容 | 核对 DSH alpha.2；不要把 peer 版本改成 rc.5 伪装兼容 |
-| 详情页没有“运行环境配置” | 确认已安装 0.1.3，安装包有 client.js；按升级提示重启后端并刷新页面，检查原生 Client Settings/插件管理服务是否正常 |
-| 进度显示“—” | 确认已加载0.1.3后重新启动任务；旧任务不会补写百分比。原生卡片读取Runtime的progress字段，阶段名称不能代替该字段 |
+| 找不到“运行环境配置” | 确认已安装0.1.4并启用组合包和sf-plato，按升级提示重启后端并刷新页面；从「包含的组件」进入sf-plato配置页，插件包外层不再显示表单。宿主必须支持plugins.row.config，并提供原生Client Settings/插件管理服务 |
+| 进度显示“—” | 确认已加载0.1.3或更新版本后重新启动任务；旧任务不会补写百分比。原生卡片读取Runtime的progress字段，阶段名称不能代替该字段 |
 | 表单提示先启用组件 | 启用 PLATO 组合包和 sf-plato；配置页不依赖 Runtime 就绪，但需要原生 Settings 服务 |
 | 无法保存或提示配置冲突 | 使用有配置写入权限的本机 DSH 网页；有冲突时先“放弃修改”读取最新值再填写，失败时草稿保留 |
 | sfRuntime/subprocess 未就绪 | 启用 Runtime 和本地 subprocess 服务；核对安装 profile |
@@ -263,6 +270,14 @@ SDK 登记入口不会自动写能力树。平台审核后保存资料，AgentVe
 ### 用户提供的 DSH 页面截图（2026-11-02）
 
 第3节和第5节的原始截图由用户提供，展示本机DSH中0.1.3的配置表单和已完成任务的100%进度、产物入口。它们补充了实际页面显示证据；此前的自动化测试仍使用合成模型响应，截图不作为论文指标复现或生成语义正确率的证据。
+
+### 0.1.4 组件内配置验证（2026-11-13）
+
+- 类型检查、构建、Client JS语法检查和配置测试通过。
+- 注册入口为 `plugins.row.config`，key与实际包名、patch组件ID一致：`@software-factory/plato#sf-plato`；不再注册Bundle外层表单。摘要视图只显示说明，完整表单仅在页面视图挂载。
+- 使用原有原生Settings/ConfigEditor测试和发布用client.js，验证已有 `sf-plato` 配置直接读取、中文路径保存、秒到毫秒换算、字段校验、放弃修改、冲突与传输错误提示；离开组件页会丢弃未保存修改。
+- 原生配置持久化、重启恢复、运行任务配置快照及兄弟组件配置隔离检查通过。本次没有变更算法、温度设置或进度计算。
+- 宿主入口契约已对照本机DSH插件管理源码核对；当前缺少DSH在线检查工具，未安装或重启用户DSH，实际组件页的导航、明暗主题和控制台尚未现场验收。自动化注册和表单测试不等于实际宿主视觉验收。旧版配置截图已标为历史界面。
 
 ## 10. 第三方来源
 

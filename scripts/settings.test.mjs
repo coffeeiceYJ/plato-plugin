@@ -25,6 +25,7 @@ async function fixture() {
   await writeFile(join(bundle, 'cordis.patch.yml'), JSON.stringify([{ insert: [
     { id: 'config-editor', name: 'cordis:editor' }, { id: 'settings', name: 'cordis:settings' },
     { id: 'sf-plato', name: 'cordis:plato' },
+    { id: 'plato-sibling', name: 'cordis:plato', config: { plantumlJarPath: 'D:\\tools\\sibling.jar' } },
   ] }]));
   const base = join(dir, 'cordis.yml');
   await writeFile(base, '[]\n');
@@ -64,7 +65,7 @@ function settingsScope(ctx) {
   };
 }
 
-const platoEntry = ctx => [...ctx.loader.entries()].find(entry => entry.options.id === 'sf-plato');
+const platoEntry = (ctx, id = 'sf-plato') => [...ctx.loader.entries()].find(entry => entry.options.id === id);
 
 test('native settings persist, retain the plugin fiber, fence stale edits and restore after restart', async t => {
   const f = await fixture();
@@ -72,6 +73,7 @@ test('native settings persist, retain the plugin fiber, fence stale edits and re
   const entry = platoEntry(f.ctx);
   assert.ok(entry?.fiber, 'Unconfigured PLATO must load without Runtime/subprocess');
   const fiber = entry.fiber;
+  const siblingBefore = snapshotConfig(platoEntry(f.ctx, 'plato-sibling').fiber.config);
   const before = snapshotConfig(fiber.config);
   assert.equal(before.plantumlJarPath, '');
   const first = f.ctx.settings.describe().find(row => row.ns === 'sf-plato');
@@ -95,6 +97,7 @@ test('native settings persist, retain the plugin fiber, fence stale edits and re
   ], current.revision));
   assert.equal(snapshotConfig(fiber.config).startupTimeoutMs, 45000);
   assert.match(await readFile(f.profile.patchPath, 'utf8'), /plantumlJarPath/);
+  assert.deepEqual(snapshotConfig(platoEntry(f.ctx, 'plato-sibling').fiber.config), siblingBefore);
   await f.ctx.fiber.dispose();
   const restarted = await f.start();
   t.after(() => restarted.fiber.dispose());
@@ -102,11 +105,14 @@ test('native settings persist, retain the plugin fiber, fence stale edits and re
   assert.equal(snapshotConfig(platoEntry(restarted).fiber.config).startupTimeoutMs, 45000);
 });
 
-test('the shipped Client form saves through native settings, validates, discards and reports failures', async t => {
+test('the shipped component page reads existing settings, saves, validates, discards and reports failures', async t => {
   const f = await fixture();
   t.after(() => f.ctx.fiber.dispose());
   const scope = settingsScope(f.ctx);
   t.after(scope.dispose);
+  await f.ctx.settings.update('sf-plato', { javaPath: 'existing-java' }, scope.getSnapshot().revision);
+  scope.refresh();
+  const siblingBefore = snapshotConfig(platoEntry(f.ctx, 'plato-sibling').fiber.config);
   const dom = new JSDOM('<!doctype html><div id="root"></div>', { url: 'http://localhost/' });
   const previous = new Map();
   for (const [key, value] of Object.entries({ window: dom.window, document: dom.window.document,
@@ -129,10 +135,13 @@ test('the shipped Client form saves through native settings, validates, discards
     effect(fn) { const off = fn(); if (typeof off === 'function') disposers.push(off); },
     locale: { register(_ns, values) { dictionaries = values; return () => {}; } },
     configForms: { get(id) { assert.equal(id, 'sf-plato'); return scope; } },
-    slots: { inject(name, callback) { assert.equal(name, 'plugins.bundle.config'); callback(); },
+    slots: { inject(name, callback) { assert.equal(name, 'plugins.row.config'); callback(); },
       register(options, view) { registration = options; Component = view; return () => {}; } },
   });
-  assert.equal(registration.key, '@software-factory/plato');
+  assert.equal(registration.name, 'plugins.row.config');
+  const manifest = JSON.parse(await readFile(resolve('package.json'), 'utf8'));
+  assert.match(await readFile(resolve('cordis.patch.yml'), 'utf8'), /id: sf-plato\b/);
+  assert.equal(registration.key, manifest.name + '#sf-plato');
   const root = createRoot(dom.window.document.getElementById('root'));
   t.after(async () => {
     await act(async () => root.unmount());
@@ -143,9 +152,16 @@ test('the shipped Client form saves through native settings, validates, discards
     }
   });
   const translate = key => dictionaries.zh[key] ?? key;
-  await act(async () => root.render(React.createElement(Component, { ...registration.inject(), t: translate })));
   const document = dom.window.document;
+  const revisionBeforeSummary = scope.getSnapshot().revision;
+  await act(async () => root.render(React.createElement(Component, { view: 'summary', t: translate })));
+  assert.match(document.body.textContent, /配置 PLATO 使用的 Python/);
+  assert.equal(document.querySelector('form'), null, 'Summary must not mount an editable form');
+  assert.equal(scope.getSnapshot().revision, revisionBeforeSummary, 'Opening a summary must not write settings');
+  const showPage = () => root.render(React.createElement(Component, { ...registration.inject(), view: 'page', t: translate }));
+  await act(async () => showPage());
   assert.match(document.body.textContent, /运行环境配置/);
+  assert.equal(document.querySelector('input[name="javaPath"]').value, 'existing-java', 'Moving the form must preserve existing settings');
   async function edit(name, value) {
     const input = document.querySelector(`input[name="${name}"]`);
     await act(async () => {
@@ -191,4 +207,9 @@ test('the shipped Client form saves through native settings, validates, discards
   assert.match(document.body.textContent, /保存失败.*Synthetic transport failure/);
   assert.equal(document.querySelector('input[name="javaPath"]').value, 'new-java');
   scope.mutate = mutate;
+  await act(async () => root.render(React.createElement(Component, { view: 'summary', t: translate })));
+  assert.equal(document.querySelector('form'), null);
+  await act(async () => showPage());
+  assert.equal(document.querySelector('input[name="javaPath"]').value, 'other-page-java', 'Leaving the component page discards unsaved edits');
+  assert.deepEqual(snapshotConfig(platoEntry(f.ctx, 'plato-sibling').fiber.config), siblingBefore, 'Sibling component settings stay unchanged');
 });
